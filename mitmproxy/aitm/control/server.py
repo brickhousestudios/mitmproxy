@@ -17,15 +17,16 @@ class ControlServer:
             os.unlink(self.sock_path)
         except OSError:
             pass
+        self._srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self._srv.bind(self.sock_path)
+        self._srv.listen(16)
+        self._srv.settimeout(0.5)
         self.running = True
         self.thread = threading.Thread(target=self._serve, daemon=True)
         self.thread.start()
 
     def _serve(self) -> None:
-        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        srv.bind(self.sock_path)
-        srv.listen(16)
-        srv.settimeout(0.5)
+        srv = self._srv
         while self.running:
             try:
                 conn, _ = srv.accept()

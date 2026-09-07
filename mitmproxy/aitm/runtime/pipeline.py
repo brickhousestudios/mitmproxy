@@ -82,6 +82,7 @@ class Pipeline:
         fp = fingerprint(obs)
         dup, n = self.dedupe.check(session + "|" + fp)
         ep = self.episodes.get_or_create(session, obs.get("taskId"))
+        ep.setdefault("agentId", str(obs.get("agentId", "") or "agent_unknown"))
         if dup or posture == "counter":
             self.counters.add(session, fp, "dup" if dup else posture)
             self.store.add_counter(session, fp, "dup" if dup else posture, 1)
