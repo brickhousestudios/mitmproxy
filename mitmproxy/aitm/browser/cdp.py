@@ -12,6 +12,7 @@ import uuid
 
 import websockets
 
+from .events import extract_stream_text
 from .events import parse_request
 from .events import parse_response
 
@@ -74,8 +75,12 @@ class CdpWatcher:
             msg["sessionId"] = session
         fut: asyncio.Future = self.loop.create_future()  # type: ignore[union-attr]
         self._pending_resp[cid] = fut
-        await ws.send(json.dumps(msg))
-        return await asyncio.wait_for(fut, timeout=10)
+        try:
+            await ws.send(json.dumps(msg))
+            return await asyncio.wait_for(fut, timeout=10)
+        except asyncio.TimeoutError:
+            self._pending_resp.pop(cid, None)
+            raise RuntimeError(f"cdp timeout: {method}")
 
     async def aim_tab(self, target_id: str, title: str = "", url: str = "") -> dict:
         for sess, tab in self.sessions.items():
@@ -89,6 +94,46 @@ class CdpWatcher:
         await self._send(self._ws, "Network.enable", {}, session=sess)  # type: ignore[attr-defined]
         self.sessions[sess] = {"targetId": target_id, "title": title, "url": url}
         return {"attached": True, "sessionId": sess}
+    async def _response_body(self, sess: str, request_id: str) -> str:
+        """Fetch completed response body for an explicitly aimed tab session."""
+        if sess not in self.sessions or not request_id:
+            return ""
+        try:
+            res = await self._send(self._ws, "Network.getResponseBody",
+                                   {"requestId": request_id}, session=sess)
+            result = res.get("result", {}) or {}
+            payload = result.get("body", "") or ""
+            if result.get("base64Encoded"):
+                import base64
+                try:
+                    payload = base64.b64decode(payload).decode("utf-8", "replace")
+                except Exception:
+                    return ""
+            if not payload or len(payload) > 262144:
+                return ""
+            text, _trunc = extract_stream_text(payload)
+            return text
+        except Exception:
+            return ""
+
+    def _emit(self, pend: dict, status: int, body: str) -> None:
+        req, tab = pend["req"], pend["tab"]
+        md: dict = {"method": req["method"], "host": req["host"],
+                "path": req["path"], "status": status,
+                "tab": tab["targetId"], "tabTitle": tab.get("title", "")[:120]}
+        if body:
+            md["bodyText"] = body
+            md["bodyTruncated"] = len(body) >= 6000
+        obs = {"id": "obs_" + uuid.uuid4().hex[:12], "source": "cdp",
+            "timestamp": int(time.time() * 1000),
+            "sessionId": "tab_" + tab["targetId"][:8],
+            "priority": "interesting" if req["rtype"] == "Document" else "normal",
+            "metadata": md}
+        try:
+            self.sink(obs)
+        except Exception:
+            pass
+
     def aim_tab_sync(self, target_id: str, title: str = "", url: str = "",
                        timeout: float = 15) -> dict:
         if not self.loop:
@@ -115,26 +160,34 @@ class CdpWatcher:
     async def _run(self) -> None:
         async with websockets.connect(browser_ws(self.cdp_http), max_size=8 * 1024 * 1024) as ws:
             self._ws = ws
-            if self.ready is not None:
-                self.ready.set()
-            await self._send(ws, "Target.setDiscoverTargets", {"discover": True})
-            while self.running:
-                try:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=1.0)
-                except asyncio.TimeoutError:
-                    continue
-                try:
-                    msg = json.loads(raw)
-                except Exception:
-                    continue
-                if "id" in msg and "method" not in msg:
-                    fut = self._pending_resp.pop(msg["id"], None)
-                    if fut and not fut.done():
-                        fut.set_result(msg)
-                elif "method" in msg:
-                    self._on_event(msg)
+            reader = asyncio.ensure_future(self._reader(ws))
+            try:
+                await self._send(ws, "Target.setDiscoverTargets", {"discover": True})
+                if self.ready is not None:
+                    self.ready.set()
+                await reader
+            finally:
+                if not reader.done():
+                    reader.cancel()
 
-    def _on_event(self, msg: dict) -> None:
+    async def _reader(self, ws) -> None:
+        while self.running:
+            try:
+                raw = await asyncio.wait_for(ws.recv(), timeout=1.0)
+            except asyncio.TimeoutError:
+                continue
+            try:
+                msg = json.loads(raw)
+            except Exception:
+                continue
+            if "id" in msg and "method" not in msg:
+                fut = self._pending_resp.pop(msg["id"], None)
+                if fut and not fut.done():
+                    fut.set_result(msg)
+            elif "method" in msg:
+                await self._on_event(msg)
+
+    async def _on_event(self, msg: dict) -> None:
         method = msg.get("method", "")
         sess = msg.get("sessionId", "")
         tab = self.sessions.get(sess)
@@ -150,26 +203,30 @@ class CdpWatcher:
             if len(self.requests) > 2048:
                 self.requests.pop(next(iter(self.requests)))
             self.requests[pr["requestId"] + sess] = {"tab": tab, "req": pr, "at": time.time()}
-        elif method in ("Network.responseReceived", "Network.loadingFailed"):
+        elif method == "Network.responseReceived":
+            key = str(params.get("requestId", "")) + sess
+            pend = self.requests.get(key)
+            if pend is None:
+                return
+            rs = parse_response(params)
+            if rs is None:
+                return
+            pend["status"] = rs["status"]
+        elif method == "Network.loadingFailed":
             key = str(params.get("requestId", "")) + sess
             pend = self.requests.pop(key, None)
             if pend is None:
                 return
-            status = 0
-            if method == "Network.responseReceived":
-                rs = parse_response(params)
-                if rs is None:
-                    return
-                status = rs["status"]
-            req, tab = pend["req"], pend["tab"]
-            obs = {"id": "obs_" + uuid.uuid4().hex[:12], "source": "cdp",
-                "timestamp": int(time.time() * 1000),
-                "sessionId": "tab_" + tab["targetId"][:8],
-                "priority": "interesting" if req["rtype"] == "Document" else "normal",
-                "metadata": {"method": req["method"], "host": req["host"],
-                    "path": req["path"], "status": status,
-                    "tab": tab["targetId"], "tabTitle": tab.get("title", "")[:120]}}
-            try:
-                self.sink(obs)
-            except Exception:
-                pass
+            self._emit(pend, 0, "")
+        elif method == "Network.loadingFinished":
+            key = str(params.get("requestId", "")) + sess
+            pend = self.requests.pop(key, None)
+            if pend is None:
+                return
+            body = await self._response_body(sess, str(params.get("requestId", "")))
+            self._emit(pend, pend.get("status", 0), body)
+        elif method == "__retired__":
+            key = str(params.get("requestId", "")) + sess
+            pend = self.requests.pop(key, None)
+            if pend is None:
+                return

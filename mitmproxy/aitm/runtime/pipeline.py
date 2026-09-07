@@ -84,6 +84,9 @@ class Pipeline:
             return IngestOutcome(outcome="dropped", reason="aim_miss")
         md = obs.get("metadata", {})
         md = redact_obj(dict(md) if isinstance(md, dict) else {})
+        if not (self.aim.tabs and str(md.get("tab", "")) in self.aim.tabs):
+            md.pop("bodyText", None)
+            md.pop("bodyTruncated", None)
         if isinstance(md.get("path"), str):
             md["path"] = redact_url(md["path"])
         obs = {**obs, "priority": pri, "metadata": md}
