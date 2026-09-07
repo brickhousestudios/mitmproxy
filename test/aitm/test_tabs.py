@@ -47,7 +47,7 @@ def test_watcher_flow_emits_on_finished_with_body():
     w.sessions["S1"] = {"targetId": "TAB1", "title": "Target", "url": "https://target.example/app"}
     async def fake_body(sess, rid):
         assert sess == "S1" and rid == "R1"
-        return "hello world"
+        return "hello world", False
     w._response_body = fake_body  # type: ignore[method-assign]
     _run(w._on_event({"method": "Network.requestWillBeSent", "sessionId": "S1", "params": WILL}))
     _run(w._on_event({"method": "Network.responseReceived", "sessionId": "S1", "params": RESP}))
@@ -68,6 +68,21 @@ def test_watcher_flow_failed_has_no_body():
                        "params": {"requestId": "R1"}}))
     assert len(got) == 1 and got[0]["metadata"]["status"] == 0
     assert "bodyText" not in got[0]["metadata"]
+
+def test_watcher_document_type_skips_body_fetch():
+    got: list = []
+    w = CdpWatcher(got.append)
+    w.sessions["S1"] = {"targetId": "TAB1", "title": "T", "url": "https://target.example/"}
+    async def fail_body(sess, rid):
+        raise AssertionError("body fetch must not run for Document rtype")
+    w._response_body = fail_body  # type: ignore[method-assign]
+    _run(w._on_event({"method": "Network.requestWillBeSent", "sessionId": "S1",
+                      "params": {"requestId": "R9", "type": "Document",
+                                 "request": {"url": "https://target.example/page", "method": "GET"}}}))
+    _run(w._on_event({"method": "Network.loadingFinished", "sessionId": "S1",
+                      "params": {"requestId": "R9"}}))
+    assert len(got) == 1, got
+    assert "bodyText" not in got[0]["metadata"], got[0]
 
 def test_extract_openai_choices():
     payload = ('data: {"choices": [{"delta": {"content": "Hello"}}]}\n\n'

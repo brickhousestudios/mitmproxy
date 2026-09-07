@@ -1,4 +1,4 @@
-"""Stable normalized hashing. No body retention."""
+"""Stable normalized hashing. Bodies contribute only a short hash, never content."""
 from __future__ import annotations
 
 import hashlib
@@ -21,5 +21,8 @@ def fingerprint(obs: dict) -> str:
         str(md.get("status", "")),
         str(md.get("contentType", "")),
     ]
+    body = str(md.get("bodyText", "") or "")
+    if body:
+        parts.append("b:" + hashlib.sha256(body.encode()).hexdigest()[:8])
     h = hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
     return h

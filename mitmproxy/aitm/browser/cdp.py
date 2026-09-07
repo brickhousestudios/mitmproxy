@@ -16,6 +16,10 @@ from .events import extract_stream_text
 from .events import parse_request
 from .events import parse_response
 
+# Resource types whose bodies carry semantic content. Document/Script/
+# Stylesheet bodies are page chrome and floods; metadata only.
+BODY_TYPES = {"XHR", "Fetch", "EventSource"}
+
 
 def list_tabs(cdp_http: str = "http://127.0.0.1:9222") -> list[dict]:
     try:
@@ -47,6 +51,7 @@ class CdpWatcher:
         self.ready: asyncio.Event | None = None
         self.error: str = ""
         self.pending_flushed = 0
+        self.body_failures = 0
         self.backstop_s = 30.0
     def start(self) -> None:
         self.running = True
@@ -105,13 +110,19 @@ class CdpWatcher:
         await self._send(self._ws, "Network.enable", {}, session=sess)  # type: ignore[attr-defined]
         self.sessions[sess] = {"targetId": target_id, "title": title, "url": url}
         return {"attached": True, "sessionId": sess}
-    async def _response_body(self, sess: str, request_id: str) -> str:
-        """Fetch completed response body for an explicitly aimed tab session."""
+    async def _response_body(self, sess: str, request_id: str) -> tuple[str, bool]:
+        """Fetch completed response body for an explicitly aimed tab session.
+
+        Returns (text, truncated).
+        """
         if sess not in self.sessions or not request_id:
-            return ""
+            return "", False
         try:
             res = await self._send(self._ws, "Network.getResponseBody",
                                    {"requestId": request_id}, session=sess)
+            if res.get("error"):
+                self.body_failures += 1
+                return "", False
             result = res.get("result", {}) or {}
             payload = result.get("body", "") or ""
             if result.get("base64Encoded"):
@@ -119,22 +130,24 @@ class CdpWatcher:
                 try:
                     payload = base64.b64decode(payload).decode("utf-8", "replace")
                 except Exception:
-                    return ""
+                    self.body_failures += 1
+                    return "", False
             if not payload or len(payload) > 1048576:
-                return ""
-            text, _trunc = extract_stream_text(payload)
-            return text
+                self.body_failures += 1
+                return "", False
+            return extract_stream_text(payload)
         except Exception:
-            return ""
+            self.body_failures += 1
+            return "", False
 
-    def _emit(self, pend: dict, status: int, body: str) -> None:
+    def _emit(self, pend: dict, status: int, body: str, trunc: bool = False) -> None:
         req, tab = pend["req"], pend["tab"]
         md: dict = {"method": req["method"], "host": req["host"],
                 "path": req["path"], "status": status,
                 "tab": tab["targetId"], "tabTitle": tab.get("title", "")[:120]}
         if body:
             md["bodyText"] = body
-            md["bodyTruncated"] = len(body) >= 6000
+            md["bodyTruncated"] = bool(trunc)
         obs = {"id": "obs_" + uuid.uuid4().hex[:12], "source": "cdp",
             "timestamp": int(time.time() * 1000),
             "sessionId": "tab_" + tab["targetId"][:8],
@@ -252,5 +265,7 @@ class CdpWatcher:
             pend = self.requests.pop(key, None)
             if pend is None:
                 return
-            body = await self._response_body(sess, str(params.get("requestId", "")))
-            self._emit(pend, pend.get("status", 0), body)
+            body, trunc = "", False
+            if pend["req"].get("rtype") in BODY_TYPES:
+                body, trunc = await self._response_body(sess, str(params.get("requestId", "")))
+            self._emit(pend, pend.get("status", 0), body, trunc)

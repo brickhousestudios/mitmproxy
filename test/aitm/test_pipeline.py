@@ -127,3 +127,26 @@ def test_bodytext_scoped_and_scrubbed():
     assert "sk-abcdefgh123456" not in kept and "[REDACTED]" in kept and "keep me" in kept, kept
     rows2 = store2.fetch("SELECT meta FROM observations")
     assert len(rows2) == 1 and "bodyText" not in rows2[0][0], rows2
+
+def test_fingerprint_distinguishes_body_content():
+    from mitmproxy.aitm.reducer.fingerprint import fingerprint
+    base = {"method": "POST", "host": "app.example", "path": "/conv", "status": 200}
+    a = _obs(metadata={**base, "bodyText": "reply one"})
+    b = _obs(metadata={**base, "bodyText": "reply two"})
+    c = _obs(metadata={**base, "bodyText": "reply one"})
+    assert fingerprint(a) != fingerprint(b), (a, b)
+    assert fingerprint(a) == fingerprint(c)
+
+def test_repeat_route_distinct_bodies_all_stored():
+    p, store = _pipe()
+    p.aim.tabs.append("TAB1")
+    base = {"method": "POST", "host": "app.example", "path": "/conv", "status": 200, "tab": "TAB1"}
+    out1 = p.ingest(_obs(metadata={**base, "bodyText": "reply one"}))
+    out2 = p.ingest(_obs(metadata={**base, "bodyText": "reply two"}))
+    assert out1.outcome == "evidenced" and out2.outcome == "evidenced", (out1, out2)
+    rows = store.fetch("SELECT meta FROM observations ORDER BY rowid")
+    assert len(rows) == 2 and '"reply one"' in rows[0][0] and '"reply two"' in rows[1][0], rows
+    # Identical repeat collapses to a counter; flood protection intact.
+    out3 = p.ingest(_obs(metadata={**base, "bodyText": "reply one"}))
+    assert out3.outcome == "counted", out3
+    assert len(store.fetch("SELECT meta FROM observations")) == 2
