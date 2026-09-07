@@ -1,7 +1,10 @@
 """Tab-aim tests: CDP shaping, tab match, watcher flow, fail-soft."""
 import asyncio
+import json
 import os
 import tempfile
+import threading
+import time
 
 from mitmproxy.aitm.browser.cdp import CdpWatcher
 from mitmproxy.aitm.browser.events import extract_stream_text
@@ -100,3 +103,89 @@ def test_daemon_tabs_fail_soft():
     finally:
         del os.environ["AITM_CDP"]
         d.store.close()
+
+
+def _tab():
+    return {"targetId": "TAB1", "title": "T", "url": "https://target.example/"}
+
+
+def test_reader_resolves_body_without_deadlock():
+    """Regression: loadingFinished handler must not block the reader loop
+    that delivers its own getResponseBody response."""
+    got: list = []
+
+    class FakeWS:
+        def __init__(self, messages):
+            self.msgs = list(messages)
+            self.lock = threading.Lock()
+
+        async def send(self, raw):
+            msg = json.loads(raw)
+            reply = {"id": msg["id"], "result": {"body": "hello body", "base64Encoded": False}}
+            with self.lock:
+                self.msgs.append(json.dumps(reply))
+
+        async def recv(self):
+            with self.lock:
+                if self.msgs:
+                    return self.msgs.pop(0)
+            # Yield to the loop before timing out; a synchronous raise would
+            # spin _reader without ever scheduling other tasks.
+            await asyncio.sleep(0)
+            raise asyncio.TimeoutError()
+
+    async def main():
+        w = CdpWatcher(got.append)
+        w.running = True
+        w.loop = asyncio.get_running_loop()
+        tab = _tab()
+        w.sessions["S1"] = tab
+        w.requests["R1S1"] = {"tab": tab,
+                              "req": {"method": "POST", "host": "target.example",
+                                      "path": "/app", "rtype": "XHR"},
+                              "at": time.time()}
+        fin = {"method": "Network.loadingFinished", "sessionId": "S1",
+               "params": {"requestId": "R1"}}
+        ws = FakeWS([json.dumps(fin)])
+        w._ws = ws
+        reader = asyncio.ensure_future(w._reader(ws))
+        t0 = time.time()
+        while not got and time.time() - t0 < 3:
+            await asyncio.sleep(0.02)
+        elapsed = time.time() - t0
+        assert got, "loadingFinished never emitted"
+        assert elapsed < 2.5, f"reader stalled {elapsed:.1f}s"
+        assert got[0]["metadata"].get("bodyText") == "hello body"
+        w.running = False
+        await asyncio.wait_for(reader, 3)
+
+    _run(main())
+
+
+def test_watcher_backstop_flushes_stale_pending():
+    got: list = []
+    w = CdpWatcher(got.append)
+    tab = _tab()
+    w.sessions["S1"] = tab
+    old = {"tab": tab, "req": {"method": "GET", "host": "target.example",
+           "path": "/stale", "rtype": "XHR"}, "at": time.time() - w.backstop_s - 1}
+    fresh = {"tab": tab, "req": {"method": "GET", "host": "target.example",
+             "path": "/fresh", "rtype": "XHR"}, "at": time.time()}
+    w.requests["OLDS1"] = old
+    w.requests["NEWS1"] = fresh
+    w._sweep()
+    assert len(got) == 1 and got[0]["metadata"]["path"] == "/stale"
+    assert w.pending_flushed == 1
+    assert "OLDS1" not in w.requests and "NEWS1" in w.requests
+
+
+def test_watcher_stop_flushes_pending():
+    got: list = []
+    w = CdpWatcher(got.append)
+    tab = _tab()
+    w.sessions["S1"] = tab
+    w.requests["R1S1"] = {"tab": tab,
+                          "req": {"method": "GET", "host": "target.example",
+                                  "path": "/p", "rtype": "XHR"}, "at": time.time()}
+    w.stop()
+    assert len(got) == 1 and w.requests == {} and w.pending_flushed == 1

@@ -41,10 +41,13 @@ class CdpWatcher:
         self.cmd_q: asyncio.Queue | None = None
         self._cmd_id = 0
         self._pending_resp: dict[int, asyncio.Future] = {}
+        self._tasks: set = set()
         self.sessions: dict[str, dict] = {}
         self.requests: dict[str, dict] = {}
         self.ready: asyncio.Event | None = None
         self.error: str = ""
+        self.pending_flushed = 0
+        self.backstop_s = 30.0
     def start(self) -> None:
         self.running = True
         self.thread = threading.Thread(target=self._thread_main, daemon=True)
@@ -52,6 +55,14 @@ class CdpWatcher:
 
     def stop(self) -> None:
         self.running = False
+        try:
+            for key in list(self.requests.keys()):
+                pend = self.requests.pop(key, None)
+                if pend is not None:
+                    self.pending_flushed += 1
+                    self._emit(pend, pend.get("status", 0), "")
+        except Exception:
+            pass
 
     def _thread_main(self) -> None:
         self.loop = asyncio.new_event_loop()
@@ -109,7 +120,7 @@ class CdpWatcher:
                     payload = base64.b64decode(payload).decode("utf-8", "replace")
                 except Exception:
                     return ""
-            if not payload or len(payload) > 262144:
+            if not payload or len(payload) > 1048576:
                 return ""
             text, _trunc = extract_stream_text(payload)
             return text
@@ -169,12 +180,15 @@ class CdpWatcher:
             finally:
                 if not reader.done():
                     reader.cancel()
+                for t in list(self._tasks):
+                    t.cancel()
 
     async def _reader(self, ws) -> None:
         while self.running:
             try:
                 raw = await asyncio.wait_for(ws.recv(), timeout=1.0)
             except asyncio.TimeoutError:
+                self._sweep()
                 continue
             try:
                 msg = json.loads(raw)
@@ -185,7 +199,22 @@ class CdpWatcher:
                 if fut and not fut.done():
                     fut.set_result(msg)
             elif "method" in msg:
-                await self._on_event(msg)
+                # Never await inline: event handlers may issue CDP commands whose
+                # responses only this loop can deliver. Spawn and keep draining.
+                t = asyncio.ensure_future(self._on_event(msg))
+                self._tasks.add(t)
+                t.add_done_callback(self._tasks.discard)
+
+    def _sweep(self) -> None:
+        """Backstop: emit stale pending requests instead of losing them silently."""
+        now = time.time()
+        for key in list(self.requests.keys()):
+            pend = self.requests.get(key)
+            if pend is None or now - pend["at"] <= self.backstop_s:
+                continue
+            if self.requests.pop(key, None) is not None:
+                self.pending_flushed += 1
+                self._emit(pend, pend.get("status", 0), "")
 
     async def _on_event(self, msg: dict) -> None:
         method = msg.get("method", "")
@@ -225,8 +254,3 @@ class CdpWatcher:
                 return
             body = await self._response_body(sess, str(params.get("requestId", "")))
             self._emit(pend, pend.get("status", 0), body)
-        elif method == "__retired__":
-            key = str(params.get("requestId", "")) + sess
-            pend = self.requests.pop(key, None)
-            if pend is None:
-                return
