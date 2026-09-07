@@ -69,3 +69,30 @@ def test_control_roundtrip():
         assert res["ok"] and res["result"]["stats"]["ingested"] >= 1
     finally:
         d.stop()
+def _ctl(sock_path: str, op: str, args: dict | None = None) -> dict:
+    import json
+    import socket
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect(sock_path)
+    s.sendall(json.dumps({"op": op, "args": args or {}}).encode())
+    res = json.loads(s.recv(65536).decode())
+    s.close()
+    return res
+
+def test_control_episodes_deltas():
+    tmp = tempfile.mkdtemp()
+    sock = os.path.join(tmp, "e.sock")
+    d = Daemon(db=os.path.join(tmp, "e.db"), sock=sock)
+    d.start()
+    try:
+        d.submit(_obs())
+        deadline = time.time() + 5
+        while d.pipeline.stats["ingested"] == 0 and time.time() < deadline:
+            time.sleep(0.05)
+        d.pipeline.flush_episodes()
+        eps = _ctl(sock, "episodes", {"limit": 10})
+        assert eps["ok"] and any(r[1] == "sess_test" for r in eps["result"]), eps
+        dlt = _ctl(sock, "deltas", {"session": "sess_test"})
+        assert dlt["ok"] and len(dlt["result"]) >= 1, dlt
+    finally:
+        d.stop()
