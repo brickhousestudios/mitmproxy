@@ -1,4 +1,4 @@
-"""Episodes: one per session, deterministic summary, bounded."""
+"""Episodes: one per (session, task) pair, deterministic summary, bounded."""
 from __future__ import annotations
 import uuid
 from collections import OrderedDict, Counter
@@ -10,8 +10,9 @@ class EpisodeStore:
         self.max_episodes = max_episodes
 
     def get_or_create(self, session: str, task: str | None = None) -> dict:
-        if session in self.by_session:
-            return self.episodes[self.by_session[session]]
+        key = (session, task or "")
+        if key in self.by_session:
+            return self.episodes[self.by_session[key]]
         ep = {
             "id": "ep_" + uuid.uuid4().hex[:12],
             "sessionId": session,
@@ -25,7 +26,7 @@ class EpisodeStore:
             "sources": Counter(),
         }
         self.episodes[ep["id"]] = ep
-        self.by_session[session] = ep["id"]
+        self.by_session[key] = ep["id"]
         while len(self.episodes) > self.max_episodes:
             old_id, _ = self.episodes.popitem(last=False)
             for s, eid in list(self.by_session.items()):

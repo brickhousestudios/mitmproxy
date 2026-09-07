@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS observations(id TEXT PRIMARY KEY, session TEXT, sourc
 CREATE TABLE IF NOT EXISTS counters(session TEXT, fp TEXT, bucket TEXT, n INTEGER, PRIMARY KEY(session, fp, bucket));
 CREATE TABLE IF NOT EXISTS deltas(id TEXT PRIMARY KEY, session TEXT, subject TEXT, kind TEXT, summary TEXT, confidence REAL);
 CREATE TABLE IF NOT EXISTS evidence(id TEXT PRIMARY KEY, hash TEXT, sensitivity TEXT, retention TEXT, access TEXT, location TEXT, expires_at INTEGER);
-CREATE TABLE IF NOT EXISTS episodes(id TEXT PRIMARY KEY, session TEXT UNIQUE, task TEXT, summary TEXT, state TEXT, obs INTEGER);
+CREATE TABLE IF NOT EXISTS episodes(id TEXT PRIMARY KEY, session TEXT, task TEXT, summary TEXT, state TEXT, obs INTEGER);
 CREATE INDEX IF NOT EXISTS idx_obs_session ON observations(session);
 CREATE INDEX IF NOT EXISTS idx_delta_session ON deltas(session);
 """
@@ -24,7 +24,30 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA synchronous=NORMAL")
         self.db.executescript(SCHEMA)
+        self._migrate_episodes()
         self.db.commit()
+
+    def _migrate_episodes(self) -> None:
+        cols = [r[1] for r in self.db.execute("PRAGMA table_info(episodes)")]
+        if not cols:
+            return
+        sql = self.db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='episodes'"
+        ).fetchone()
+        legacy_agent = "agent" in cols
+        unique_session = bool(sql and "UNIQUE" in sql[0])
+        if not legacy_agent and not unique_session:
+            return
+        self.db.execute("ALTER TABLE episodes RENAME TO episodes_old")
+        self.db.executescript(SCHEMA)
+        if legacy_agent:
+            self.db.execute(
+                "INSERT OR IGNORE INTO episodes(id, session, task, summary, state, obs) "
+                "SELECT id, session, task, summary, state, obs FROM episodes_old")
+        else:
+            self.db.execute(
+                "INSERT OR IGNORE INTO episodes SELECT * FROM episodes_old")
+        self.db.execute("DROP TABLE episodes_old")
 
     def _q(self, sql: str, args: tuple = ()):
         with self.lock:
