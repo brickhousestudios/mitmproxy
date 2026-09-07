@@ -57,6 +57,7 @@ dependencies = [
     "urwid>=2.6.14,<=4.0.9",
     "wsproto>=1.0,<=1.3.2",
     "publicsuffix2>=2.20190812,<=2.20191221",
+    "mcp>=1.29.1",
 ]
 
 [dependency-groups]
@@ -102,6 +103,7 @@ Issues = "https://github.com/mitmproxy/mitmproxy/issues"
 mitmproxy = "mitmproxy.tools.main:mitmproxy"
 mitmdump = "mitmproxy.tools.main:mitmdump"
 aitmd = "mitmproxy.tools.aitmd:aitmd"
+aitmmcp = "mitmproxy.aitm.mcp.server:main"
 mitmweb = "mitmproxy.tools.main:mitmweb"
 
 [project.entry-points.pyinstaller40]

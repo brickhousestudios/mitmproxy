@@ -29,6 +29,9 @@ class Daemon:
     def handle_control(self, req: dict) -> dict:
         op = str(req.get("op", ""))
         args = req.get("args", {}) if isinstance(req.get("args"), dict) else {}
+        if op == "posture":
+            return {"ok": True, "result": {"stats": self.pipeline.stats,
+                "queue_depth": self.pipeline.q.qsize()}}
         if op == "stats":
             return {"ok": True, "result": {
                 "stats": self.pipeline.stats, "drops": self.pipeline.drops,
