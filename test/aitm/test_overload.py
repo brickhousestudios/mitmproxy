@@ -63,3 +63,35 @@ def test_summary_deterministic():
             p.ingest(dict(o))
         sums.append(p.episodes.get_or_create("sess_det")["summary"])
     assert sums[0] == sums[1] and sums[0].startswith("obs=60 ")
+
+
+def test_submit_path_overload_bounded():
+    """100k through real nonblocking submit(): bounded, suppressed, live pressure drains."""
+    tmp = tempfile.mkdtemp()
+    store = Store(os.path.join(tmp, "s.db"))
+    p = Pipeline(store, qsize=64)
+    p.budget.limits.max_event_rate_per_origin = 10 ** 9
+    p.start()
+    try:
+        t0 = time.time()
+        accepted = 0
+        for i in range(N):
+            if p.submit(_noise(i)):
+                accepted += 1
+        dt = time.time() - t0
+        assert dt < 30, dt
+        assert p.stats["suppressed_queue"] > 0
+        assert p.drops["queue_full"] > 0
+        assert accepted + p.drops["queue_full"] == N
+        assert p.q.qsize() <= 64
+        deadline = time.time() + 60
+        while p.budget.live_obs > 0 and time.time() < deadline:
+            time.sleep(0.05)
+        assert p.budget.live_obs == 0, p.budget.live_obs
+        assert p.budget.live_bytes == 0, p.budget.live_bytes
+    finally:
+        p.stop()
+    assert store.fetch("SELECT COUNT(*) FROM evidence")[0][0] == 0
+    cols = [c[1] for c in store.fetch("PRAGMA table_info(observations)")]
+    assert "payload" not in cols and "body" not in cols
+    print("\nsubmit-path: accepted=%d suppressed=%d in %.1fs" % (accepted, p.stats['suppressed_queue'], dt))
