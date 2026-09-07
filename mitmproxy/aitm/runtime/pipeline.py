@@ -9,6 +9,7 @@ from ..budget.manager import BudgetManager
 from ..outcome import IngestOutcome
 from ..policy.admission import admit
 from ..policy.aim import Aim
+from ..policy.redact import redact_body_text
 from ..policy.redact import redact_obj
 from ..policy.redact import redact_url
 from ..reducer.counters import Counters
@@ -87,6 +88,8 @@ class Pipeline:
         if not (self.aim.tabs and str(md.get("tab", "")) in self.aim.tabs):
             md.pop("bodyText", None)
             md.pop("bodyTruncated", None)
+        elif "bodyText" in md:
+            md["bodyText"] = redact_body_text(str(md["bodyText"]))
         if isinstance(md.get("path"), str):
             md["path"] = redact_url(md["path"])
         obs = {**obs, "priority": pri, "metadata": md}

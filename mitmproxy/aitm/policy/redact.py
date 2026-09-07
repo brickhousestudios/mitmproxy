@@ -40,3 +40,15 @@ def redact_obj(o, depth: int = 0):
     if isinstance(o, str) and len(o) > 4096:
         return o[:4096] + "...[TRUNC]"
     return o
+
+
+_SECRET_TEXT_RE = re.compile(
+    r'(?:"?[A-Za-z0-9_.-]*(?:token|secret|passwd|password|api[_-]?key|auth|cookie|session)[A-Za-z0-9_.-]*"?\s*[:=]\s*"?|[Bb]earer\s+)'
+    r'([A-Za-z0-9._~+/=-]{6,})',
+)
+
+def redact_body_text(text: str) -> str:
+    """Mask secret-shaped values inside free text bodies (key=value, "key":"value", Bearer x)."""
+    if not text:
+        return text
+    return _SECRET_TEXT_RE.sub(lambda m: m.group(0)[: -len(m.group(1))] + REDACTED, text)

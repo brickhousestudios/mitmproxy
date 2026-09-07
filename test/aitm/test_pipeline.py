@@ -97,3 +97,33 @@ def test_control_episodes_deltas():
         assert dlt["ok"] and len(dlt["result"]) >= 1, dlt
     finally:
         d.stop()
+
+
+def test_redact_body_text_patterns():
+    from mitmproxy.aitm.policy.redact import redact_body_text
+    assert "topsecret" not in redact_body_text("Bearer topsecret123456 rest")
+    assert redact_body_text('"api_key":"abcd12345678"').count("[REDACTED]") == 1
+    assert redact_body_text("no secrets here: hello world") == "no secrets here: hello world"
+
+
+def test_bodytext_scoped_and_scrubbed():
+    p, store = _pipe()
+    p.aim.tabs.append("TAB1")
+    secret_body = '"access_token": "sk-abcdefgh123456", "note": "keep me"'
+    out = p.ingest(_obs(metadata={"method": "POST", "host": "app.example", "path": "/api",
+                                  "status": 200, "tab": "TAB1", "bodyText": secret_body}))
+    assert out.outcome == "evidenced", out
+    # Non-aimed tab never admits while tab scope is active (drop-at-door).
+    out2 = p.ingest(_obs(metadata={"method": "POST", "host": "app.example", "path": "/api2",
+                                   "status": 200, "tab": "TAB2", "bodyText": secret_body}))
+    assert out2.outcome == "dropped" and out2.reason == "aim_miss", out2
+    # No tab scope: bodyText is stripped from admitted traffic.
+    p2, store2 = _pipe()
+    p2.ingest(_obs(metadata={"method": "POST", "host": "app.example", "path": "/api3",
+                             "status": 200, "bodyText": secret_body}))
+    rows = store.fetch("SELECT meta FROM observations ORDER BY rowid")
+    assert len(rows) == 1, rows
+    kept = rows[0][0]
+    assert "sk-abcdefgh123456" not in kept and "[REDACTED]" in kept and "keep me" in kept, kept
+    rows2 = store2.fetch("SELECT meta FROM observations")
+    assert len(rows2) == 1 and "bodyText" not in rows2[0][0], rows2
