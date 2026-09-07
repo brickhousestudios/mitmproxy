@@ -8,6 +8,7 @@ from ..policy.admission import admit
 from ..policy.redact import redact_obj, redact_url
 from ..reducer.counters import Counters
 from ..reducer.delta import DeltaBuilder
+from ..policy.aim import Aim
 from ..reducer.dedupe import Dedupe
 from ..reducer.episode import EpisodeStore
 from ..reducer.fingerprint import fingerprint
@@ -16,6 +17,7 @@ class Pipeline:
     def __init__(self, store, scope_allow=None, qsize: int = 2048):
         self.store = store
         self.scope_allow = scope_allow
+        self.aim = Aim()
         self.budget = BudgetManager()
         self.budget.limits.ingress_queue_capacity = qsize
         self.dedupe = Dedupe()
@@ -64,6 +66,9 @@ class Pipeline:
         if not ok:
             self._drop(reason)
             return IngestOutcome(outcome="dropped", reason=reason)
+        if not self.aim.matches(obs):
+            self._drop("aim_miss")
+            return IngestOutcome(outcome="dropped", reason="aim_miss")
         md = obs.get("metadata", {})
         md = redact_obj(dict(md) if isinstance(md, dict) else {})
         if isinstance(md.get("path"), str):

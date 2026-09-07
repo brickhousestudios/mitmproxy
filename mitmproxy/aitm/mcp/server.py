@@ -31,6 +31,9 @@ TOOLS = [
     ("agent_episodes", "Episodes for an agent", {"agent": {"type": "string"}}),
     ("episode_deltas", "Recent deltas for a session", {"session": {"type": "string"}}),
     ("posture", "Daemon posture: stats, queue", {}),
+    ("set_aim", "Aim capture at target hosts/paths", {"hosts": {"type": "array"}, "paths": {"type": "array"}}),
+    ("clear_aim", "Remove aim, capture everything in scope", {}),
+    ("aim", "Show current aim and miss count", {}),
 ]
 async def _on_list_tools(ctx, params) -> types.ListToolsResult:
     out = []
@@ -57,7 +60,7 @@ async def _on_call_tool(ctx, params) -> types.CallToolResult:
         oc = d.pipeline.ingest(obs)
         res = {"ok": True, "result": {"outcome": oc.outcome, "observationId": oc.observationId,
             "deltaId": oc.deltaId, "reason": oc.reason, "capturePosture": oc.capturePosture}}
-    elif name in ("agent_summary", "agent_episodes", "episode_deltas", "posture"):
+    elif name in ("agent_summary", "agent_episodes", "episode_deltas", "posture", "set_aim", "clear_aim", "aim"):
         d.pipeline.flush_episodes()
         res = {"ok": True, "result": d.handle_control(
             {"op": name, "args": args})["result"]}

@@ -76,4 +76,18 @@ class Daemon:
             n, total = rows[0] if rows else (0, 0)
             return {"ok": True, "result": {"episodes": n, "observations": total,
                 "latest": latest[0][0] if latest else ""}}
+        if op == "set_aim":
+            hosts = args.get("hosts") or []
+            paths = args.get("paths") or []
+            self.pipeline.aim.hosts = [h.strip().lower().lstrip(".") for h in hosts if h]
+            self.pipeline.aim.paths = [p for p in paths if p]
+            return {"ok": True, "result": self.pipeline.aim.describe()}
+        if op == "clear_aim":
+            self.pipeline.aim.hosts = []
+            self.pipeline.aim.paths = []
+            return {"ok": True, "result": self.pipeline.aim.describe()}
+        if op == "aim":
+            d = self.pipeline.aim.describe()
+            d["missed"] = self.pipeline.drops.get("aim_miss", 0)
+            return {"ok": True, "result": d}
         return {"ok": False, "error": f"unknown op: {op}"}

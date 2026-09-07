@@ -23,3 +23,8 @@ max_disk_bytes = 10737418240
 
 [control]
 # default socket: $AITM_DIR/aitmd.sock (default $HOME/.aitm)
+
+[aim]
+# agent target scope. empty = everything in scope.
+hosts = []
+paths = []
