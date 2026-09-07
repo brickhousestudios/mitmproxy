@@ -1,4 +1,5 @@
-"""Aim: agent-scoped capture targeting. Host suffix + path prefix."""
+"""Capture scope: observation targeting by host suffix, path prefix, tab id.
+Scope is policy: any client may request it; AITM does not care who."""
 from __future__ import annotations
 
 class Aim:

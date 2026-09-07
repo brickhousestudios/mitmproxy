@@ -1,4 +1,4 @@
-"""Aim tests: agent-scoped capture targeting."""
+"""Capture-scope tests: host/path targeting, drop-at-door."""
 import json
 import os
 import socket

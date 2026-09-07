@@ -1,4 +1,4 @@
-# AITM default configuration. Local-only, bounded, agent-first.
+# AITM default configuration. Local-only, bounded, semantic.
 [ingest]
 queue_capacity = 2048
 scope_allow = []
@@ -25,6 +25,6 @@ max_disk_bytes = 10737418240
 # default socket: $AITM_DIR/aitmd.sock (default $HOME/.aitm)
 
 [aim]
-# agent target scope. empty = everything in scope.
+# capture scope. empty = everything admitted by policy.
 hosts = []
 paths = []
