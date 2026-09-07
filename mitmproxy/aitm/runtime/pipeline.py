@@ -1,18 +1,22 @@
 """Pipeline: admit→redact→budget→fp/dedupe→delta/counter→store→episode."""
 from __future__ import annotations
+
 import json
 import queue
 import threading
+
 from ..budget.manager import BudgetManager
 from ..outcome import IngestOutcome
 from ..policy.admission import admit
-from ..policy.redact import redact_obj, redact_url
-from ..reducer.counters import Counters
-from ..reducer.delta import DeltaBuilder
 from ..policy.aim import Aim
+from ..policy.redact import redact_obj
+from ..policy.redact import redact_url
+from ..reducer.counters import Counters
 from ..reducer.dedupe import Dedupe
+from ..reducer.delta import DeltaBuilder
 from ..reducer.episode import EpisodeStore
 from ..reducer.fingerprint import fingerprint
+
 
 class Pipeline:
     def __init__(self, store, scope_allow=None, qsize: int = 2048):

@@ -1,6 +1,7 @@
 """Managed browser lifecycle. AITM owns the debug relaunch: snapshot, ephemeral
 CDP port, restore, guaranteed teardown. No lingering exposure."""
 from __future__ import annotations
+
 import json
 import re
 import subprocess
@@ -35,6 +36,8 @@ def launch_debug(extra: list[str] | None = None, timeout: float = 40) -> str:
     buf = ""
     while time.time() < deadline and not port:
         import select
+        if p.stderr is None:
+            break
         ready, _, _ = select.select([p.stderr], [], [], 2)
         if ready:
             buf += p.stderr.read(4096) or ""
@@ -70,7 +73,7 @@ def restore_tabs(cdp_http: str, snapshot: list[dict]) -> int:
     return opened
 
 def launch_normal() -> bool:
-    p = subprocess.Popen([BRAVE_BIN, f"--user-data-dir={app_support()}/{PROFILE}"],
+    subprocess.Popen([BRAVE_BIN, f"--user-data-dir={app_support()}/{PROFILE}"],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.time() + 30
     while time.time() < deadline:

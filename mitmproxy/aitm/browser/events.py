@@ -1,5 +1,6 @@
 """CDP event shaping. Network events to observation metadata. No deps."""
 from __future__ import annotations
+
 from urllib.parse import urlsplit
 
 SKIP_TYPES = {"Image", "Font", "Media", "Other"}

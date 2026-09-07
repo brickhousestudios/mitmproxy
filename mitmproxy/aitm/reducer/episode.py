@@ -1,19 +1,22 @@
 """Episodes: one per (session, task) pair, deterministic summary, bounded."""
 from __future__ import annotations
+
 import uuid
-from collections import OrderedDict, Counter
+from collections import Counter
+from collections import OrderedDict
+
 
 class EpisodeStore:
     def __init__(self, max_episodes: int = 200):
         self.episodes: OrderedDict[str, dict] = OrderedDict()
-        self.by_session: dict[str, str] = {}
+        self.by_session: dict[tuple[str, str], str] = {}
         self.max_episodes = max_episodes
 
     def get_or_create(self, session: str, task: str | None = None) -> dict:
         key = (session, task or "")
         if key in self.by_session:
             return self.episodes[self.by_session[key]]
-        ep = {
+        ep: dict = {
             "id": "ep_" + uuid.uuid4().hex[:12],
             "sessionId": session,
             "taskId": task,

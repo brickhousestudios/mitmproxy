@@ -4,7 +4,8 @@ import os
 import tempfile
 
 from mitmproxy import options
-from mitmproxy.tools.aitmd import AitmMaster, aitm_addons
+from mitmproxy.tools.aitmd import aitm_addons
+from mitmproxy.tools.aitmd import AitmMaster
 
 BANNED = {"View", "Dumper", "EventStore", "Save", "SaveHar"}
 

@@ -2,6 +2,7 @@
 Research: CDP Target docs (attachToTarget flatten, sessionId events).
 """
 from __future__ import annotations
+
 import asyncio
 import json
 import threading
@@ -11,7 +12,9 @@ import uuid
 
 import websockets
 
-from .events import parse_request, parse_response
+from .events import parse_request
+from .events import parse_response
+
 
 def list_tabs(cdp_http: str = "http://127.0.0.1:9222") -> list[dict]:
     try:
@@ -90,6 +93,8 @@ class CdpWatcher:
                        timeout: float = 15) -> dict:
         if not self.loop:
             return {"attached": False, "error": "watcher not started"}
+        if self.ready is None:
+            return {"attached": False, "error": "watcher not ready"}
         async def _wait_ready():
             try:
                 await asyncio.wait_for(self.ready.wait(), timeout=timeout)
@@ -109,7 +114,8 @@ class CdpWatcher:
     async def _run(self) -> None:
         async with websockets.connect(browser_ws(self.cdp_http), max_size=8 * 1024 * 1024) as ws:
             self._ws = ws
-            self.ready.set()
+            if self.ready is not None:
+                self.ready.set()
             await self._send(ws, "Target.setDiscoverTargets", {"discover": True})
             while self.running:
                 try:

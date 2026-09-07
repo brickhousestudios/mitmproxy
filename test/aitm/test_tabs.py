@@ -3,7 +3,8 @@ import os
 import tempfile
 
 from mitmproxy.aitm.browser.cdp import CdpWatcher
-from mitmproxy.aitm.browser.events import parse_request, parse_response
+from mitmproxy.aitm.browser.events import parse_request
+from mitmproxy.aitm.browser.events import parse_response
 from mitmproxy.aitm.daemon import Daemon
 from mitmproxy.aitm.policy.aim import Aim
 

@@ -2,7 +2,6 @@
 import os
 import tempfile
 import time
-import uuid
 
 from mitmproxy.aitm.runtime.pipeline import Pipeline
 from mitmproxy.aitm.store.sqlite import Store

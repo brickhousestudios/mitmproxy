@@ -2,6 +2,7 @@
 Scope is policy: any client may request it; AITM does not care who."""
 from __future__ import annotations
 
+
 class Aim:
     def __init__(self, hosts: list[str] | None = None, paths: list[str] | None = None):
         self.hosts = [h.strip().lower().lstrip(".") for h in (hosts or []) if h]

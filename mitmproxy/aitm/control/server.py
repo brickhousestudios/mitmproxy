@@ -1,9 +1,11 @@
 """Unix-socket JSON-lines API. Agents query semantic state here."""
 from __future__ import annotations
+
 import json
 import os
 import socket
 import threading
+
 
 class ControlServer:
     def __init__(self, sock_path: str, daemon):

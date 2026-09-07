@@ -1,5 +1,6 @@
 """Stable normalized hashing. No body retention."""
 from __future__ import annotations
+
 import hashlib
 import re
 

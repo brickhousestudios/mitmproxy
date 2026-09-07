@@ -1,7 +1,11 @@
 """Redact before persistence. Headers, query, JSON secrets."""
 from __future__ import annotations
+
 import re
-from urllib.parse import urlsplit, parse_qsl, urlencode, urlunsplit
+from urllib.parse import parse_qsl
+from urllib.parse import urlencode
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
 REDACT_HEADERS = {"authorization", "cookie", "set-cookie", "proxy-authorization", "x-api-key"}
 REDACT_QUERY = {"token", "access_token", "api_key", "key", "signature", "sig"}

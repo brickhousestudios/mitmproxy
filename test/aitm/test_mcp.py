@@ -5,10 +5,9 @@ import os
 import sys
 import tempfile
 
-import pytest
-
 from mcp import ClientSession
-from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.client.stdio import stdio_client
+from mcp.client.stdio import StdioServerParameters
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -1,8 +1,10 @@
 import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 from threading import Thread
-from mitmproxy.aitm.browser import managed
-from mitmproxy.aitm.browser.managed import restore_tabs, snapshot_tabs
+
+from mitmproxy.aitm.browser.managed import restore_tabs
+from mitmproxy.aitm.browser.managed import snapshot_tabs
 
 PAGES = [{"id": "A1", "type": "page", "url": "https://a.example/", "title": "A"},
          {"id": "B2", "type": "page", "url": "https://b.example/", "title": "B"},

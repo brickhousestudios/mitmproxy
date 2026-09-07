@@ -1,6 +1,8 @@
 """Store paths. Local-only, capped, no cloud."""
 from __future__ import annotations
+
 import os
+
 
 def base_dir() -> str:
     d = os.environ.get("AITM_DIR", os.path.join(os.path.expanduser("~"), ".aitm"))

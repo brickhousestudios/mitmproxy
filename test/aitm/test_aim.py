@@ -3,11 +3,11 @@ import json
 import os
 import socket
 import tempfile
-import time
 import uuid
 
 from mitmproxy.aitm.daemon import Daemon
 from mitmproxy.aitm.policy.aim import Aim
+
 
 def _obs(host, path="/", i=0):
     return {"id": "obs_" + uuid.uuid4().hex[:12], "source": "http",

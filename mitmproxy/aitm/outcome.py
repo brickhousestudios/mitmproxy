@@ -1,7 +1,9 @@
 """AITM ingest outcomes. Every adapter/reducer must return one."""
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
+from typing import Optional
 
 OutcomeKind = Literal["dropped", "counted", "sampled", "reduced", "evidenced", "incident"]
 

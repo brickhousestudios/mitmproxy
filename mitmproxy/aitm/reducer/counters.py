@@ -1,6 +1,8 @@
 """Counter buckets. Floods become numbers, never retained events."""
 from __future__ import annotations
+
 from collections import defaultdict
+
 
 class Counters:
     def __init__(self):

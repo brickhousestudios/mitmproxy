@@ -1,7 +1,9 @@
 """TTL-bounded dedupe. Collapse floods, keep counters."""
 from __future__ import annotations
+
 import time
 from collections import OrderedDict
+
 
 class Dedupe:
     def __init__(self, capacity: int = 4096, ttl_s: int = 60):

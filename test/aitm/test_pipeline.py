@@ -8,6 +8,7 @@ from mitmproxy.aitm.daemon import Daemon
 from mitmproxy.aitm.runtime.pipeline import Pipeline
 from mitmproxy.aitm.store.sqlite import Store
 
+
 def _obs(**kw):
     d = {
         "id": "obs_" + uuid.uuid4().hex[:12],

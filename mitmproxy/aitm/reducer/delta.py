@@ -1,8 +1,10 @@
 """Delta builder. First-seen + priority rules, deterministic text."""
 from __future__ import annotations
+
 import time
 import uuid
 from collections import OrderedDict
+
 
 class DeltaBuilder:
     def __init__(self, capacity: int = 8192):

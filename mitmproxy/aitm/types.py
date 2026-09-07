@@ -1,7 +1,10 @@
 """AITM stable semantic types. No raw bodies here."""
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Literal, Optional
+
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Literal
+from typing import Optional
 
 Source = Literal["http", "websocket", "sse", "cdp", "tool", "filesystem", "model", "synthetic"]
 Priority = Literal["noise", "normal", "interesting", "critical"]

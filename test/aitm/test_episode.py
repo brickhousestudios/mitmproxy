@@ -4,6 +4,7 @@ import tempfile
 
 from mitmproxy.aitm.daemon import Daemon
 
+
 def _obs(i, session, task=None):
     return {"id": f"obs_{i}", "source": "http", "timestamp": 1700000000000 + i,
         "sessionId": session, "taskId": task, "priority": "interesting",

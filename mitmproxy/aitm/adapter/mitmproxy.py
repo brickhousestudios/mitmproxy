@@ -1,7 +1,9 @@
 """Convert mitmproxy hooks/flows to Observations. Metadata only."""
 from __future__ import annotations
+
 import time
 import uuid
+
 
 def observation_from_flow_headers(flow, stage: str) -> dict:
     req = getattr(flow, "request", None)

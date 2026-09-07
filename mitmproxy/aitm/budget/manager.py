@@ -1,7 +1,9 @@
 """BudgetManager: global RAM/disk/queue/capture authority."""
 from __future__ import annotations
-from dataclasses import dataclass, field
+
 import time
+from dataclasses import dataclass
+from dataclasses import field
 
 POSTURES = ("full", "preview", "structure", "metadata", "counter", "suppressed")
 

@@ -1,12 +1,16 @@
 """Daemon: owns store + pipeline + control socket."""
 from __future__ import annotations
+
 import os
 import time
-from .browser.cdp import CdpWatcher, list_tabs
+
+from .browser.cdp import CdpWatcher
+from .browser.cdp import list_tabs
 from .control.server import ControlServer
 from .runtime.pipeline import Pipeline
 from .store import paths
 from .store.sqlite import Store
+
 
 class Daemon:
     def __init__(self, db: str | None = None, sock: str | None = None, scope_allow=None):

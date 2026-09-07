@@ -1,6 +1,7 @@
 """AITM MCP adapter. Exposes the AITM control/query surface as stdio tools.
 MCP is a client of AITM: no persistence, ownership, or memory semantics here."""
 from __future__ import annotations
+
 import asyncio
 import json
 import time
@@ -43,14 +44,14 @@ async def _on_list_tools(ctx, params) -> types.ListToolsResult:
     for name, desc, props in TOOLS:
         req = [k for k in ("session", "target") if k in props]
         out.append(types.Tool(name=name, description=desc,
-            inputSchema={"type": "object", "properties": props, "required": req}))
+            input_schema={"type": "object", "properties": props, "required": req}))
     return types.ListToolsResult(tools=out)
 
 async def _on_call_tool(ctx, params) -> types.CallToolResult:
     d = get_daemon()
     name, args = params.name, params.arguments or {}
     if name == "submit_observation":
-        obs = {"id": "obs_" + uuid.uuid4().hex[:12], "source": str(args.get("source", "mcp")),
+        obs: dict = {"id": "obs_" + uuid.uuid4().hex[:12], "source": str(args.get("source", "mcp")),
             "timestamp": int(time.time() * 1000), "sessionId": str(args.get("session", "")),
             "taskId": args.get("task"), "priority": str(args.get("priority", "routine")),
             "metadata": args.get("metadata") if isinstance(args.get("metadata"), dict) else {}}

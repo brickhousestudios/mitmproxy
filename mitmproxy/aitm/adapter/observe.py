@@ -1,6 +1,8 @@
 """AITMObserve: thin mitmproxy addon. Emit only, retain nothing."""
 from __future__ import annotations
+
 import queue
+
 from .mitmproxy import observation_from_flow_headers
 
 _sink = None
