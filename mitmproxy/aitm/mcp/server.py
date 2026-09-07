@@ -34,6 +34,8 @@ TOOLS = [
     ("set_aim", "Aim capture at target hosts/paths", {"hosts": {"type": "array"}, "paths": {"type": "array"}}),
     ("clear_aim", "Remove aim, capture everything in scope", {}),
     ("aim", "Show current aim and miss count", {}),
+    ("tabs", "List open browser tabs", {}),
+    ("aim_tab", "Aim capture at one browser tab", {"target": {"type": "string"}}),
 ]
 async def _on_list_tools(ctx, params) -> types.ListToolsResult:
     out = []
@@ -60,7 +62,7 @@ async def _on_call_tool(ctx, params) -> types.CallToolResult:
         oc = d.pipeline.ingest(obs)
         res = {"ok": True, "result": {"outcome": oc.outcome, "observationId": oc.observationId,
             "deltaId": oc.deltaId, "reason": oc.reason, "capturePosture": oc.capturePosture}}
-    elif name in ("agent_summary", "agent_episodes", "episode_deltas", "posture", "set_aim", "clear_aim", "aim"):
+    elif name in ("agent_summary", "agent_episodes", "episode_deltas", "posture", "set_aim", "clear_aim", "aim", "tabs", "aim_tab"):
         d.pipeline.flush_episodes()
         res = {"ok": True, "result": d.handle_control(
             {"op": name, "args": args})["result"]}

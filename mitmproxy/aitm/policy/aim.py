@@ -5,15 +5,18 @@ class Aim:
     def __init__(self, hosts: list[str] | None = None, paths: list[str] | None = None):
         self.hosts = [h.strip().lower().lstrip(".") for h in (hosts or []) if h]
         self.paths = [p for p in (paths or []) if p]
+        self.tabs: list[str] = []
 
     @property
     def active(self) -> bool:
-        return bool(self.hosts or self.paths)
+        return bool(self.hosts or self.paths or self.tabs)
 
     def matches(self, obs: dict) -> bool:
         if not self.active:
             return True
         md = obs.get("metadata", {}) if isinstance(obs.get("metadata"), dict) else {}
+        if self.tabs:
+            return str(md.get("tab", "")) in self.tabs
         host = str(md.get("host", "")).lower()
         path = str(md.get("path", ""))
         if self.hosts:
@@ -25,4 +28,4 @@ class Aim:
         return True
 
     def describe(self) -> dict:
-        return {"active": self.active, "hosts": self.hosts, "paths": self.paths}
+        return {"active": self.active, "hosts": self.hosts, "paths": self.paths, "tabs": self.tabs}
