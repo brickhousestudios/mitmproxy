@@ -95,9 +95,10 @@ class CdpWatcher:
             return {"attached": False, "error": "watcher not started"}
         if self.ready is None:
             return {"attached": False, "error": "watcher not ready"}
+        ready = self.ready
         async def _wait_ready():
             try:
-                await asyncio.wait_for(self.ready.wait(), timeout=timeout)
+                await asyncio.wait_for(ready.wait(), timeout=timeout)
             except Exception:
                 pass
         asyncio.run_coroutine_threadsafe(_wait_ready(), self.loop).result(timeout=timeout)
