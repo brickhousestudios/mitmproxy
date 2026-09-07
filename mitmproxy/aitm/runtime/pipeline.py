@@ -1,5 +1,6 @@
 """Pipeline: admit→redact→budget→fp/dedupe→delta/counter→store→episode."""
 from __future__ import annotations
+import json
 import queue
 import threading
 from ..budget.manager import BudgetManager
@@ -31,13 +32,17 @@ class Pipeline:
         self.drops[reason] = self.drops.get(reason, 0) + 1
 
     def submit(self, obs: dict) -> bool:
+        """Nonblocking enqueue. live_obs/live_bytes track in-flight pressure."""
+        size = len(json.dumps(obs.get("metadata", {}), default=str)) + 128
         try:
-            self.q.put_nowait(obs)
-            return True
+            self.q.put_nowait((obs, size))
         except queue.Full:
             self.stats["suppressed_queue"] += 1
             self._drop("queue_full")
             return False
+        self.budget.live_obs += 1
+        self.budget.live_bytes += size
+        return True
 
     def start(self) -> None:
         self.running = True
@@ -53,13 +58,17 @@ class Pipeline:
     def _drain(self) -> None:
         while self.running or not self.q.empty():
             try:
-                obs = self.q.get(timeout=0.2)
+                item = self.q.get(timeout=0.2)
             except queue.Empty:
                 continue
+            obs, size = item if isinstance(item, tuple) else (item, 0)
             try:
                 self.ingest(obs)
             except Exception:
                 self._drop("ingest_error")
+            finally:
+                self.budget.live_obs = max(0, self.budget.live_obs - 1)
+                self.budget.live_bytes = max(0, self.budget.live_bytes - size)
     def ingest(self, obs: dict) -> IngestOutcome:
         session = str(obs.get("sessionId", "sess_default"))
         ok, reason, pri = admit(obs, self.scope_allow)
@@ -82,7 +91,6 @@ class Pipeline:
         if posture == "suppressed":
             self._drop("suppressed")
             return IngestOutcome(outcome="dropped", reason="suppressed")
-        self.budget.live_obs += 1
         self.stats["ingested"] += 1
         fp = fingerprint(obs)
         dup, n = self.dedupe.check(session + "|" + fp)
