@@ -1,0 +1,25 @@
+# AITM default configuration. Local-only, bounded, agent-first.
+[ingest]
+queue_capacity = 2048
+scope_allow = []
+
+[budget]
+max_live_observations = 5000
+max_live_raw_bytes = 134217728
+max_session_raw_bytes = 536870912
+max_event_rate_per_origin = 100
+max_body_capture_bytes = 262144
+max_websocket_frame_capture = 16384
+max_retained_episodes = 200
+max_disk_evidence_bytes = 10737418240
+
+[reducer]
+dedupe_capacity = 4096
+dedupe_ttl_s = 60
+delta_capacity = 8192
+
+[store]
+max_disk_bytes = 10737418240
+
+[control]
+# default socket: $AITM_DIR/aitmd.sock (default $HOME/.aitm)

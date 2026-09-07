@@ -101,6 +101,7 @@ Issues = "https://github.com/mitmproxy/mitmproxy/issues"
 [project.scripts]
 mitmproxy = "mitmproxy.tools.main:mitmproxy"
 mitmdump = "mitmproxy.tools.main:mitmdump"
+aitmd = "mitmproxy.tools.aitmd:aitmd"
 mitmweb = "mitmproxy.tools.main:mitmweb"
 
 [project.entry-points.pyinstaller40]
