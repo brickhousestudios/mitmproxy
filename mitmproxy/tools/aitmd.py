@@ -4,7 +4,6 @@ from mitmproxy import addons
 from mitmproxy import master
 from mitmproxy import options
 from mitmproxy.addons import errorcheck
-from mitmproxy.addons import keepserving
 from mitmproxy.addons import save
 from mitmproxy.addons import savehar
 from mitmproxy.aitm.adapter import observe
@@ -23,7 +22,6 @@ class AitmMaster(master.Master):
         self.addons.add(*aitm_addons())
         self.addons.add(
             observe.AITMObserve(),
-            keepserving.KeepServing(),
             errorcheck.ErrorCheck(),
         )
     async def running(self):
